@@ -11,35 +11,45 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.x'
+        python-version: '3.9'
+        cache: 'pip'
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pytest pytest-cov
         
     - name: Run tests
       run: |
-        python -m pytest tests/ || true
+        python -m pytest tests/ --cov=app
       env:
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        FLASK_ENV: testing
         
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
     - name: Deploy to Render
       env:
         RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
       run: |
-        echo "배포가 시작되었습니다..."
-        # 여기에 Render 배포 스크립트가 들어갑니다 
+        echo "배포를 시작합니다..."
+        if [ -n "$DEPLOY_HOOK_URL" ]; then
+          curl -X POST $DEPLOY_HOOK_URL
+          echo "Render 배포 훅이 트리거되었습니다."
+        else
+          echo "RENDER_DEPLOY_HOOK_URL이 설정되지 않았습니다."
+          exit 1
+        fi 
